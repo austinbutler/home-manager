@@ -364,6 +364,51 @@ in
       example = lib.literalExpression "./skills";
     };
 
+    keybindings = lib.mkOption {
+      type = lib.types.listOf (lib.types.submodule {
+        options = {
+          context = lib.mkOption {
+            type = lib.types.str;
+            description = ''
+              The context where these keybindings apply
+              (e.g., Chat, Global, Autocomplete).
+            '';
+          };
+          bindings = lib.mkOption {
+            type = lib.types.attrsOf (lib.types.nullOr lib.types.str);
+            default = { };
+            description = ''
+              Map of keystrokes to actions.
+              Set a value to {command}`null` to unbind a default shortcut.
+            '';
+          };
+        };
+      });
+      default = [ ];
+      description = ''
+        Keybinding configuration for Claude Code.
+        Each entry specifies a context and a map of keystrokes to actions.
+        The configuration is written to {file}`~/.claude/keybindings.json`.
+      '';
+      example = lib.literalExpression ''
+        [
+          {
+            context = "Chat";
+            bindings = {
+              "ctrl+e" = "chat:externalEditor";
+              "ctrl+u" = null;
+            };
+          }
+          {
+            context = "Global";
+            bindings = {
+              "ctrl+t" = "app:toggleTodos";
+            };
+          }
+        ]
+      '';
+    };
+
     mcpServers = lib.mkOption {
       type = lib.types.attrsOf jsonFormat.type;
       default = { };
@@ -477,6 +522,14 @@ in
               "$schema" = "https://json.schemastore.org/claude-code-settings.json";
             }
           );
+        };
+
+        ".claude/keybindings.json" = lib.mkIf (cfg.keybindings != [ ]) {
+          source = jsonFormat.generate "claude-code-keybindings.json" {
+            "$schema" = "https://www.schemastore.org/claude-code-keybindings.json";
+            "$docs" = "https://code.claude.com/docs/en/keybindings";
+            bindings = cfg.keybindings;
+          };
         };
 
         ".claude/CLAUDE.md" = lib.mkIf (cfg.memory.text != null || cfg.memory.source != null) (

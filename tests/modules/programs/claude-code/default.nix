@@ -18,5 +18,6 @@
   claude-code-skills-path = ./skills-path.nix;
   claude-code-mixed-content = ./mixed-content.nix;
   claude-code-output-styles = ./output-styles.nix;
+  claude-code-keybindings = ./keybindings.nix;
   claude-code-output-styles-not-set = ./output-styles-not-set.nix;
 }
