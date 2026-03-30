@@ -1,7 +1,9 @@
 {
   claude-code-basic = ./basic.nix;
   claude-code-full-config = ./full-config.nix;
+  claude-code-lsp = ./lsp.nix;
   claude-code-mcp = ./mcp.nix;
+  claude-code-mcp-lsp = ./mcp-lsp.nix;
   claude-code-mcp-integration = ./mcp-integration.nix;
   claude-code-assertion = ./assertion.nix;
   claude-code-memory-management = ./memory-management.nix;
@@ -20,4 +22,6 @@
   claude-code-output-styles = ./output-styles.nix;
   claude-code-keybindings = ./keybindings.nix;
   claude-code-output-styles-not-set = ./output-styles-not-set.nix;
+  claude-code-plugins = ./plugins.nix;
+  claude-code-marketplacess = ./marketplaces.nix;
 }
