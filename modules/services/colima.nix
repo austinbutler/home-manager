@@ -245,7 +245,7 @@ in
             "${cfg.colimaHomeDir}/${profileName}/colima.yaml" = {
               source = yamlFormat.generate "colima.yaml" profile.settings;
             };
-          }) (lib.filterAttrs (name: profile: profile.settings != { }) cfg.profiles)
+          }) (lib.filterAttrs (_name: profile: profile.settings != { }) cfg.profiles)
         );
 
         sessionVariables = {
@@ -312,8 +312,6 @@ in
         lib.nameValuePair "colima-${name}" {
           Unit = {
             Description = "Colima container runtime (${name} profile)";
-            After = [ "network-online.target" ];
-            Wants = [ "network-online.target" ];
           };
           Service = {
             ExecStart = ''

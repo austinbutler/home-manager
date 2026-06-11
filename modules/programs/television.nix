@@ -19,26 +19,27 @@ in
     package = lib.mkPackageOption pkgs "television" { nullable = true; };
 
     settings = lib.mkOption {
-      type = tomlFormat.type;
+      inherit (tomlFormat) type;
       default = { };
       description = ''
         Configuration written to {file}`$XDG_CONFIG_HOME/television/config.toml`.
         See <https://github.com/alexpasmantier/television/blob/main/.config/config.toml>
         for the full list of options.
       '';
-      example = lib.literalExpression ''
-        {
-          tick_rate = 50;
-          ui = {
-            use_nerd_font_icons = true;
-            ui_scale = 120;
-            show_preview_panel = false;
-          };
-          keybindings = {
-            quit = [ "esc" "ctrl-c" ];
-          };
-        }
-      '';
+      example = {
+        tick_rate = 50;
+        ui = {
+          use_nerd_font_icons = true;
+          ui_scale = 120;
+          show_preview_panel = false;
+        };
+        keybindings = {
+          quit = [
+            "esc"
+            "ctrl-c"
+          ];
+        };
+      };
     };
 
     channels = lib.mkOption {

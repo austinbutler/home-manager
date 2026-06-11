@@ -31,19 +31,21 @@ let
 
   transformedMcpServers = lib.optionalAttrs (cfg.enableMcpIntegration && config.programs.mcp.enable) (
     lib.mapAttrs (
-      _name: server:
-      # NOTE: Convert shared programs.mcp fields to Zed config keys:
-      # - removeAttrs drops keys that Zed does not use directly
-      # - "disabled" becomes inverse "enabled"
-      # See: https://zed.dev/docs/ai/mcp
-      (lib.removeAttrs server [ "disabled" ])
-      // {
-        enabled = !(server.disabled or false);
+      name: server:
+      # See: https://zed.dev/docs/ai/mcp & https://github.com/zed-industries/zed/discussions/53780
+      lib.hm.mcp.transformMcpServer {
+        inherit server;
+        extraTransforms = [
+          lib.hm.mcp.addType
+          (lib.hm.mcp.wrapEnvFilesCommand { inherit pkgs name; })
+        ];
       }
     ) config.programs.mcp.servers
   );
 
-  settingMcpServers = lib.attrByPath [ "context_servers" ] { } cfg.userSettings;
+  settingMcpServers = lib.mapAttrs (_: lib.hm.mcp.addType) (
+    lib.attrByPath [ "context_servers" ] { } cfg.userSettings
+  );
   mergedMcpServers = transformedMcpServers // settingMcpServers;
 
   mergedSettings =
@@ -55,9 +57,17 @@ let
     // (lib.optionalAttrs (mergedMcpServers != { }) {
       context_servers = mergedMcpServers;
     });
+
+  editorEnv = {
+    EDITOR = "${cfg.package.meta.mainProgram} --wait";
+    VISUAL = "${cfg.package.meta.mainProgram} --wait";
+  };
 in
 {
-  meta.maintainers = [ lib.maintainers.alinnow ];
+  meta.maintainers = [
+    lib.maintainers.alinnow
+    lib.maintainers.zh4ngx
+  ];
 
   options = {
     programs.zed-editor = {
@@ -109,28 +119,26 @@ in
       };
 
       userSettings = mkOption {
-        type = jsonFormat.type;
+        inherit (jsonFormat) type;
         default = { };
-        example = literalExpression ''
-          {
-            features = {
-              copilot = false;
-            };
-            telemetry = {
-              metrics = false;
-            };
-            vim_mode = false;
-            ui_font_size = 16;
-            buffer_font_size = 16;
-          }
-        '';
+        example = {
+          features = {
+            copilot = false;
+          };
+          telemetry = {
+            metrics = false;
+          };
+          vim_mode = false;
+          ui_font_size = 16;
+          buffer_font_size = 16;
+        };
         description = ''
           Configuration written to Zed's {file}`settings.json`.
         '';
       };
 
       userKeymaps = mkOption {
-        type = jsonFormat.type;
+        inherit (jsonFormat) type;
         default = [ ];
         example = literalExpression ''
           [
@@ -148,17 +156,18 @@ in
       };
 
       userTasks = mkOption {
-        type = jsonFormat.type;
+        inherit (jsonFormat) type;
         default = [ ];
-        example = literalExpression ''
-          [
-            {
-              label = "Format Code";
-              command = "nix";
-              args = [ "fmt" "$ZED_WORKTREE_ROOT" ];
-            }
-          ]
-        '';
+        example = [
+          {
+            label = "Format Code";
+            command = "nix";
+            args = [
+              "fmt"
+              "$ZED_WORKTREE_ROOT"
+            ];
+          }
+        ];
         description = ''
           Configuration written to Zed's {file}`tasks.json`.
 
@@ -168,19 +177,17 @@ in
       };
 
       userDebug = mkOption {
-        type = jsonFormat.type;
+        inherit (jsonFormat) type;
         default = [ ];
-        example = literalExpression ''
-          [
-            {
-              label = "Go (Delve)";
-              adapter = "Delve";
-              program = "$ZED_FILE";
-              request = "launch";
-              mode = "debug";
-            }
-          ]
-        '';
+        example = [
+          {
+            label = "Go (Delve)";
+            adapter = "Delve";
+            program = "$ZED_FILE";
+            request = "launch";
+            mode = "debug";
+          }
+        ];
         description = ''
           Configuration written to Zed's {file}`debug.json`.
 
@@ -191,9 +198,11 @@ in
       extensions = mkOption {
         type = types.listOf types.str;
         default = [ ];
-        example = literalExpression ''
-          [ "swift" "nix" "xy-zed" ]
-        '';
+        example = [
+          "swift"
+          "nix"
+          "xy-zed"
+        ];
         description = ''
           A list of the extensions Zed should install on startup.
           Use the name of a repository in the [extension list](https://github.com/zed-industries/extensions/tree/main/extensions).
@@ -246,6 +255,15 @@ in
         );
         default = { };
       };
+
+      defaultEditor = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Whether to set {command}`zeditor -w` as the default editor using the
+          {env}`EDITOR` and {env}`VISUAL` environment variables.
+        '';
+      };
     };
   };
 
@@ -254,6 +272,10 @@ in
       {
         assertion = cfg.extraPackages != [ ] -> cfg.package != null;
         message = "{option}programs.zed-editor.extraPackages requires non null {option}programs.zed-editor.package";
+      }
+      {
+        assertion = cfg.defaultEditor -> cfg.package != null;
+        message = "{option}programs.zed-editor.defaultEditor requires non null {option}programs.zed-editor.package";
       }
     ];
 
@@ -266,7 +288,7 @@ in
             preferLocalBuild = true;
             nativeBuildInputs = [ pkgs.makeWrapper ];
             postBuild = ''
-              wrapProgram $out/bin/zeditor \
+              wrapProgram $out/bin/${cfg.package.meta.mainProgram or "zeditor"} \
                 --suffix PATH : ${lib.makeBinPath cfg.extraPackages}
             '';
           })
@@ -345,5 +367,7 @@ in
         "zed/debug.json".source = jsonFormat.generate "zed-user-debug" cfg.userDebug;
       })
     ];
+
+    home.sessionVariables = mkIf cfg.defaultEditor editorEnv;
   };
 }

@@ -76,6 +76,13 @@ in
       description = "The Pictures directory.";
     };
 
+    projects = mkOption {
+      type = with types; nullOr (coercedTo path toString str);
+      default = "${config.home.homeDirectory}/Projects";
+      defaultText = literalExpression ''"''${config.home.homeDirectory}/Projects"'';
+      description = "The Projects directory.";
+    };
+
     publicShare = mkOption {
       type = with types; nullOr (coercedTo path toString str);
       default = "${config.home.homeDirectory}/Public";
@@ -106,25 +113,6 @@ in
           MISC = "''${config.home.homeDirectory}/Misc";
         }
       '';
-      apply =
-        if lib.versionOlder config.home.stateVersion "26.05" then
-          lib.mapAttrs' (
-            k:
-            let
-              matches = lib.match "XDG_(.*)_DIR" k;
-            in
-            lib.nameValuePair (
-              if matches == null then
-                k
-              else
-                let
-                  name = lib.elemAt matches 0;
-                in
-                lib.warn "using keys like ‘${k}’ for xdg.userDirs.extraConfig is deprecated in favor of keys like ‘${name}’" name
-            )
-          )
-        else
-          lib.id;
       description = ''
         Other user directories.
 
@@ -136,10 +124,21 @@ in
 
     setSessionVariables = mkOption {
       type = with types; bool;
-      default = lib.versionOlder config.home.stateVersion "26.05";
-      defaultText = literalExpression ''
-        lib.versionOlder config.home.stateVersion "26.05"
-      '';
+      inherit
+        (lib.hm.deprecations.mkStateVersionOptionDefault {
+          inherit (config.home) stateVersion;
+          since = "26.05";
+          optionPath = [
+            "xdg"
+            "userDirs"
+            "setSessionVariables"
+          ];
+          legacy.value = true;
+          current.value = false;
+        })
+        default
+        defaultText
+        ;
       description = ''
         Whether to set the XDG user dir environment variables, like
         `XDG_DESKTOP_DIR`.
@@ -157,22 +156,55 @@ in
 
   config =
     let
+      legacyExtraConfigKeys = lib.filter (key: lib.match "XDG_(.*)_DIR" key != null) (
+        lib.attrNames cfg.extraConfig
+      );
+
+      normalizeExtraConfigKey =
+        key:
+        let
+          matches = lib.match "XDG_(.*)_DIR" key;
+        in
+        if matches == null then key else lib.elemAt matches 0;
+
+      extraConfig =
+        if lib.versionOlder config.home.stateVersion "26.05" then
+          lib.mapAttrs' (key: lib.nameValuePair (normalizeExtraConfigKey key)) cfg.extraConfig
+        else
+          cfg.extraConfig;
+
       directories =
-        (lib.filterAttrs (n: v: !isNull v) {
+        (lib.filterAttrs (_n: v: !isNull v) {
           DESKTOP = cfg.desktop;
           DOCUMENTS = cfg.documents;
           DOWNLOAD = cfg.download;
           MUSIC = cfg.music;
           PICTURES = cfg.pictures;
+          PROJECTS = cfg.projects;
           PUBLICSHARE = cfg.publicShare;
           TEMPLATES = cfg.templates;
           VIDEOS = cfg.videos;
         })
-        // cfg.extraConfig;
+        // extraConfig;
 
       bindings = lib.mapAttrs' (k: lib.nameValuePair "XDG_${k}_DIR") directories;
     in
     lib.mkIf cfg.enable {
+      warnings = lib.optionals (lib.versionOlder config.home.stateVersion "26.05") (
+        map (
+          key:
+          lib.hm.deprecations.mkDeprecatedOptionValueWarning {
+            option = [
+              "xdg"
+              "userDirs"
+              "extraConfig"
+            ];
+            old = "keys like `${key}`";
+            replacement = "keys like `${normalizeExtraConfigKey key}`";
+          }
+        ) legacyExtraConfigKeys
+      );
+
       xdg.configFile."user-dirs.dirs".text =
         let
           # For some reason, these need to be wrapped with quotes to be valid.

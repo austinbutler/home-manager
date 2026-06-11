@@ -269,7 +269,7 @@ in
                   path = config.flake.outPath;
                 }
                 // lib.filterAttrs (
-                  n: v: n == "lastModified" || n == "rev" || n == "revCount" || n == "narHash"
+                  n: _v: n == "lastModified" || n == "rev" || n == "revCount" || n == "narHash"
                 ) config.flake
               );
             };
@@ -335,13 +335,15 @@ in
     settings = mkOption {
       type = types.submodule { freeformType = semanticConfType; };
       default = { };
-      example = literalExpression ''
-        {
-          sandbox = true;
-          show-trace = true;
-          system-features = [ "big-parallel" "kvm" "recursive-nix" ];
-        }
-      '';
+      example = {
+        sandbox = true;
+        show-trace = true;
+        system-features = [
+          "big-parallel"
+          "kvm"
+          "recursive-nix"
+        ];
+      };
       description = ''
         Configuration for Nix; see {manpage}`nix.conf(5)` for available options.
         The value declared here will be translated directly to the key-value pairs Nix expects.
@@ -398,7 +400,7 @@ in
       (mkIf (cfg.registry != { }) {
         xdg.configFile."nix/registry.json".source = jsonFormat.generate "registry.json" {
           version = cfg.registryVersion;
-          flakes = mapAttrsToList (n: v: { inherit (v) from to exact; }) cfg.registry;
+          flakes = mapAttrsToList (_n: v: { inherit (v) from to exact; }) cfg.registry;
         };
       })
 
